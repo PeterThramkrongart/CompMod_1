@@ -391,6 +391,32 @@ r.squaredGLMM(pupilModel)
     ## [1,] 0.01399353 0.8652069
 
 ``` r
+unique(pupilSize$ParticipantID)
+```
+
+    ## [1] "F1" "M1" "F2" "F3" "F4" "F5"
+
+``` r
+pupilGuy = subset(pupilSize, ParticipantID ==    'M1' & Trial == 1)
+
+
+## Let's make a summary dataset
+pupilFix <- pupilGuy[!is.na(pupilGuy$FixationNo),] %>% 
+  group_by(FixationNo) %>% # since I only have one participant and one trial
+  summarise(MeanX = Fix_MeanX[1], MeanY = Fix_MeanY[1], Duration = Fix_Duration[1]) %>% 
+  filter(Duration>=300) # only keep fixations > 300 ms
+
+#scanpath plot #BORING...
+ggplot(pupilFix, aes(MeanX, MeanY, color = pupilFix$FixationNo)) +
+  geom_path(color = "black") +
+  geom_point(size = pupilFix$Duration*.01, alpha = .5) +
+  geom_text_repel(aes(label = pupilFix$Duration), size = 3, color = "white") +
+  xlim(0,1680) + ylim(0,1050)
+```
+
+![](CompMod1_files/figure-gfm/Pupil%20Scanpath-1.png)<!-- -->
+
+``` r
 #data for plots
 pupilModelData2 <- pupilModelData %>% 
   group_by(Ostension, Direction) %>% 
@@ -424,28 +450,27 @@ pupilModelData %>% ggplot(
        y = "Pupil Size") +
   theme_minimal() +
   scale_fill_brewer(palette = "Blues") +
-  theme(legend.position="none")
+  theme(legend.position="none")+
+  ggtitle("2X2 Bar plot")
 ```
 
 ![](CompMod1_files/figure-gfm/Pupil%20Plots-2.png)<!-- -->
 
 ``` r
-#bar plot
+#bar plot for individuals
 pupilModelData %>% ggplot(
-       aes(x = Ostension,
-           fill = Direction,  
+       aes(x = ParticipantID,
+           fill = ParticipantID,  
            y = PupilSizeMean)) +
   stat_summary(fun.y = mean,
                geom = "bar") +
   stat_summary(fun.data = mean_cl_normal, 
                geom="errorbar", 
                width = 0.25)+
-  facet_wrap(~Direction)+
-  labs(x = "Ostension",
+  facet_wrap(~Condition)+
+  labs(x = "Participant",
        y = "Pupil Size") +
-  theme_minimal() +
-  scale_fill_brewer(palette = "Blues") +
-  theme(legend.position="none")
+  ggtitle("2X2 Bar plot by participant")
 ```
 
 ![](CompMod1_files/figure-gfm/Pupil%20Plots-3.png)<!-- -->
@@ -458,3 +483,34 @@ ggplot(pupilModelData, aes(x = ParticipantID, y = PupilSizeMean, fill = Particip
 ```
 
 ![](CompMod1_files/figure-gfm/Pupil%20Plots-4.png)<!-- -->
+
+``` r
+#box plots for conditions
+ggplot(pupilModelData, aes(x = Condition, y = PupilSizeMean, fill = Condition)) + 
+    geom_boxplot()+
+  ggtitle("Boxplot on conditions")
+```
+
+![](CompMod1_files/figure-gfm/Pupil%20Plots-5.png)<!-- -->
+
+``` r
+#Growth curves between conditions
+ggplot(pupilSize, aes(Time, PupilSize, color = VideoCondition)) +
+  geom_smooth()+
+  ggtitle("Growth curves between conditions")
+```
+
+    ## `geom_smooth()` using method = 'gam' and formula 'y ~ s(x, bs = "cs")'
+
+![](CompMod1_files/figure-gfm/Pupil%20Plots-6.png)<!-- -->
+
+``` r
+#Growth curves between conditions
+ggplot(pupilSize, aes(Time, PupilSize, color = ParticipantID)) +
+  geom_smooth()+facet_wrap(~VideoCondition)+
+  ggtitle("Growth curves between conditions for every single partipant")
+```
+
+    ## `geom_smooth()` using method = 'gam' and formula 'y ~ s(x, bs = "cs")'
+
+![](CompMod1_files/figure-gfm/Pupil%20Plots-7.png)<!-- -->
