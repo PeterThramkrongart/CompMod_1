@@ -83,21 +83,24 @@ Sac_Amplitude = col_double())) %>%
 
 
 ```{r}
+
+#isolating the one guy
 unique(samples$ParticipantID)
 x = subset(samples, ParticipantID ==    'M2_1' & Trial == 5)
 
-filter(samples, ParticipantID == "M2_1" & Trial == 5)
 
-## Let's make a summary dataset
+
+##creating summary dataset of one data point for one saccade and quick visualization
 Fix <- x[!is.na(x$FixationNo),] %>% 
   group_by(FixationNo) %>% # since I only have one participant and one trial
   summarise(MeanX = Fix_MeanX[1], MeanY = Fix_MeanY[1], Duration = Fix_Duration[1]) %>% 
   filter(Duration>=300) # only keep fixations > 300 ms
 
+#preparing image
 img <- jpeg::readJPEG('stimuli_Foraging/birds.jpg')  
 img <- grid::rasterGrob(img, width=unit(1, "npc"), height = unit(1,"npc"),
                         interpolate = FALSE)
-
+#scan path
 ggplot(Fix, aes(MeanX, MeanY, color = Fix$FixationNo)) + 
   annotation_custom(img, xmin = 0, xmax = 1680, ymin = 0, ymax = 1050) +
   # hacky way to adjust opacity of background picture:
@@ -112,7 +115,7 @@ ggplot(Fix, aes(MeanX, MeanY, color = Fix$FixationNo)) +
 ```
 
 ```{r}
-
+##creating summary dataset of one data point for one saccade and quick visualization
 saccades <- samples[!is.na(samples$SaccadeNo) & samples$Task == "Foraging",] %>% 
   group_by(ParticipantID, Trial, SaccadeNo) %>% 
   summarise(SaccadeAmplitude = mean(Sac_Amplitude), ForagingType = ForagingType[1], Stimulus = Stimulus[1]) %>% 
@@ -120,36 +123,55 @@ saccades <- samples[!is.na(samples$SaccadeNo) & samples$Task == "Foraging",] %>%
 
 head(saccades)
 
-ggplot(saccades, aes(SaccadeAmplitude, color = ForagingType)) + geom_density()
+Saccades <- saccades
+
+#better density plots
+ggplot(saccades, aes(SaccadeAmplitude, color = ParticipantID)) + geom_density()+facet_wrap(~ForagingType)+ggtitle("Saccade amplitude Distributions")
 ```
 
 ```{r}
-mGaus <-
-  glmer(
-    SaccadeAmplitude ~ ForagingType + (1 + ForagingType |
-                                         ParticipantID) + (1 + ForagingType | Stimulus),
-    family = gaussian(link = "identity"),
-    data = saccades
-  )
 
-mLog <-
-  glmer(
-    SaccadeAmplitude ~ ForagingType + (1 + ForagingType |
-                                         ParticipantID) + (1 + ForagingType | Stimulus),
-    family = gaussian(link = "log"),
-    data = saccades
-  )
+## comparing normal and log models
+m_log <- glmer(SaccadeAmplitude ~ 1 + ForagingType + (ForagingType|ParticipantID) + (ForagingType|Stimulus), data = Saccades, family = gaussian(link="log" ))
+summary(m_log)
 
-summary(mGaus)
+m_id <- glmer(SaccadeAmplitude ~ 1 + ForagingType + (ForagingType|ParticipantID) + (ForagingType|Stimulus), data = Saccades, family = gaussian(link="identity" ))
+summary(m_id)
 
-summary(mLog)
+# exponentiating to get back to the relevant scale
+exp(0.927+0.538) - exp(0.927)
+exp(0.07907)
+exp(0.538)
+exp(0.927+0.538) - exp(0.538)
+## plotting and comparing results
+plot(residuals(m_log)) + plot(residuals(m_id))
+
+plot(predict(m_log)) + plot(predict(m_id))
+
+plot(density(predict(m_log))) + plot(density(predict(m_id)))
+
+## assessing model's fit 
+dGaus <- DHARMa::simulateResiduals(m_log, n=250)
+dlog <- DHARMa::simulateResiduals(m_id)
+
+plot(dGaus)
+plot(dlog)
+plot(density(Saccades$SaccadeNo))
+
+summary(abs(predict(m_log)- Saccades$SaccadeAmplitude))
+
+r.squaredGLMM(m_log)
+r.squaredGLMM(m_id)
+
 ```
 ```{r}
-pm1 <- predict(mGaus)
-pm2 <- predict(mLog)
 
-plot(density(pm1))
-plot(density(saccades$SaccadeAmplitude))
+saccadesModelData2 <- saccades %>% 
+  group_by(ForagingType) %>% 
+  summarise(MeanSaccadeAmplitude = mean(SaccadeAmplitude))
+
+ggplot(saccades, aes(ForagingType, SaccadeAmplitude,color=SaccadeNo)) + geom_point() + geom_abline(intercept = 2.5358, slope = 1.8753)+geom_jitter()
+
 ```
 
 ```{r,PupilSize}
@@ -282,6 +304,7 @@ ggplot(pupilSize, aes(Time, PupilSize, color = VideoCondition)) +
 ggplot(pupilSize, aes(Time, PupilSize, color = ParticipantID)) +
   geom_smooth()+facet_wrap(~VideoCondition)+
   ggtitle("Growth curves between conditions for every single partipant")
+
 
 ```
 

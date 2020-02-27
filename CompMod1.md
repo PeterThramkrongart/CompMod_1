@@ -77,6 +77,7 @@ Sac_Amplitude = col_double())) %>%
 ```
 
 ``` r
+#isolating the one guy
 unique(samples$ParticipantID)
 ```
 
@@ -86,43 +87,19 @@ unique(samples$ParticipantID)
 ``` r
 x = subset(samples, ParticipantID ==    'M2_1' & Trial == 5)
 
-filter(samples, ParticipantID == "M2_1" & Trial == 5)
-```
 
-    ## # A tibble: 10,590 x 33
-    ##    ParticipantID ParticipantGend~ EyeTracked Task  SearchOrder ForagingType
-    ##    <chr>         <chr>            <chr>      <chr>       <dbl> <chr>       
-    ##  1 M2_1          Male             Left       Fora~           1 Search      
-    ##  2 M2_1          Male             Left       Fora~           1 Search      
-    ##  3 M2_1          Male             Left       Fora~           1 Search      
-    ##  4 M2_1          Male             Left       Fora~           1 Search      
-    ##  5 M2_1          Male             Left       Fora~           1 Search      
-    ##  6 M2_1          Male             Left       Fora~           1 Search      
-    ##  7 M2_1          Male             Left       Fora~           1 Search      
-    ##  8 M2_1          Male             Left       Fora~           1 Search      
-    ##  9 M2_1          Male             Left       Fora~           1 Search      
-    ## 10 M2_1          Male             Left       Fora~           1 Search      
-    ## # ... with 10,580 more rows, and 27 more variables: Trial <dbl>,
-    ## #   Stimulus <chr>, Video <chr>, Time <dbl>, GazeX <dbl>, GazeY <dbl>,
-    ## #   PupilSize <dbl>, FixationNo <dbl>, Fix_StartTime <dbl>, Fix_EndTime <dbl>,
-    ## #   Fix_Duration <dbl>, Fix_MeanX <dbl>, Fix_MeanY <dbl>,
-    ## #   Fix_MeanPupilSize <dbl>, SaccadeNo <dbl>, Sac_StartTime <dbl>,
-    ## #   Sac_EndTime <dbl>, Sac_Duration <dbl>, Sac_StartX <dbl>, Sac_StartY <dbl>,
-    ## #   Sac_EndX <dbl>, Sac_EndY <dbl>, Sac_PeakVelocity <dbl>,
-    ## #   Sac_MeanVelocity <dbl>, Sac_Blink <lgl>, Sac_Direction <chr>,
-    ## #   Sac_Amplitude <dbl>
 
-``` r
-## Let's make a summary dataset
+##creating summary dataset of one data point for one saccade and quick visualization
 Fix <- x[!is.na(x$FixationNo),] %>% 
   group_by(FixationNo) %>% # since I only have one participant and one trial
   summarise(MeanX = Fix_MeanX[1], MeanY = Fix_MeanY[1], Duration = Fix_Duration[1]) %>% 
   filter(Duration>=300) # only keep fixations > 300 ms
 
+#preparing image
 img <- jpeg::readJPEG('stimuli_Foraging/birds.jpg')  
 img <- grid::rasterGrob(img, width=unit(1, "npc"), height = unit(1,"npc"),
                         interpolate = FALSE)
-
+#scan path
 ggplot(Fix, aes(MeanX, MeanY, color = Fix$FixationNo)) + 
   annotation_custom(img, xmin = 0, xmax = 1680, ymin = 0, ymax = 1050) +
   # hacky way to adjust opacity of background picture:
@@ -136,6 +113,7 @@ ggplot(Fix, aes(MeanX, MeanY, color = Fix$FixationNo)) +
 ![](CompMod1_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->
 
 ``` r
+##creating summary dataset of one data point for one saccade and quick visualization
 saccades <- samples[!is.na(samples$SaccadeNo) & samples$Task == "Foraging",] %>% 
   group_by(ParticipantID, Trial, SaccadeNo) %>% 
   summarise(SaccadeAmplitude = mean(Sac_Amplitude), ForagingType = ForagingType[1], Stimulus = Stimulus[1]) %>% 
@@ -156,82 +134,32 @@ head(saccades)
     ## 6 F6_1              1         6            21.4  Search       sheep.jpg
 
 ``` r
-ggplot(saccades, aes(SaccadeAmplitude, color = ForagingType)) + geom_density()
+Saccades <- saccades
+
+#better density plots
+ggplot(saccades, aes(SaccadeAmplitude, color = ParticipantID)) + geom_density()+facet_wrap(~ForagingType)+ggtitle("Saccade amplitude Distributions")
 ```
 
 ![](CompMod1_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
 
 ``` r
-mGaus <-
-  glmer(
-    SaccadeAmplitude ~ ForagingType + (1 + ForagingType |
-                                         ParticipantID) + (1 + ForagingType | Stimulus),
-    family = gaussian(link = "identity"),
-    data = saccades
-  )
-```
-
-    ## Warning in glmer(SaccadeAmplitude ~ ForagingType + (1 + ForagingType |
-    ## ParticipantID) + : calling glmer() with family=gaussian (identity link) as a
-    ## shortcut to lmer() is deprecated; please call lmer() directly
-
-``` r
-mLog <-
-  glmer(
-    SaccadeAmplitude ~ ForagingType + (1 + ForagingType |
-                                         ParticipantID) + (1 + ForagingType | Stimulus),
-    family = gaussian(link = "log"),
-    data = saccades
-  )
+## comparing normal and log models
+m_log <- glmer(SaccadeAmplitude ~ 1 + ForagingType + (ForagingType|ParticipantID) + (ForagingType|Stimulus), data = Saccades, family = gaussian(link="log" ))
 ```
 
     ## boundary (singular) fit: see ?isSingular
 
 ``` r
-summary(mGaus)
-```
-
-    ## Linear mixed model fit by REML ['lmerMod']
-    ## Formula: 
-    ## SaccadeAmplitude ~ ForagingType + (1 + ForagingType | ParticipantID) +  
-    ##     (1 + ForagingType | Stimulus)
-    ##    Data: saccades
-    ## 
-    ## REML criterion at convergence: 20364.2
-    ## 
-    ## Scaled residuals: 
-    ##     Min      1Q  Median      3Q     Max 
-    ## -1.5220 -0.6237 -0.2889  0.3112  6.1997 
-    ## 
-    ## Random effects:
-    ##  Groups        Name               Variance Std.Dev. Corr 
-    ##  Stimulus      (Intercept)         0.2151  0.4638        
-    ##                ForagingTypeSearch  0.7719  0.8786   -0.60
-    ##  ParticipantID (Intercept)         0.1318  0.3631        
-    ##                ForagingTypeSearch  0.2913  0.5397   -0.61
-    ##  Residual                         12.9688  3.6012        
-    ## Number of obs: 3762, groups:  Stimulus, 10; ParticipantID, 6
-    ## 
-    ## Fixed effects:
-    ##                    Estimate Std. Error t value
-    ## (Intercept)          2.5358     0.2274  11.153
-    ## ForagingTypeSearch   1.8753     0.3838   4.887
-    ## 
-    ## Correlation of Fixed Effects:
-    ##             (Intr)
-    ## FrgngTypSrc -0.601
-
-``` r
-summary(mLog)
+summary(m_log)
 ```
 
     ## Generalized linear mixed model fit by maximum likelihood (Laplace
     ##   Approximation) [glmerMod]
     ##  Family: gaussian  ( log )
     ## Formula: 
-    ## SaccadeAmplitude ~ ForagingType + (1 + ForagingType | ParticipantID) +  
-    ##     (1 + ForagingType | Stimulus)
-    ##    Data: saccades
+    ## SaccadeAmplitude ~ 1 + ForagingType + (ForagingType | ParticipantID) +  
+    ##     (ForagingType | Stimulus)
+    ##    Data: Saccades
     ## 
     ##      AIC      BIC   logLik deviance df.resid 
     ##  20434.4  20490.5 -10208.2  20416.4     3753 
@@ -263,19 +191,160 @@ summary(mLog)
     ## boundary (singular) fit: see ?isSingular
 
 ``` r
-pm1 <- predict(mGaus)
-pm2 <- predict(mLog)
+m_id <- glmer(SaccadeAmplitude ~ 1 + ForagingType + (ForagingType|ParticipantID) + (ForagingType|Stimulus), data = Saccades, family = gaussian(link="identity" ))
+```
 
-plot(density(pm1))
+    ## Warning in glmer(SaccadeAmplitude ~ 1 + ForagingType + (ForagingType |
+    ## ParticipantID) + : calling glmer() with family=gaussian (identity link) as a
+    ## shortcut to lmer() is deprecated; please call lmer() directly
+
+``` r
+summary(m_id)
+```
+
+    ## Linear mixed model fit by REML ['lmerMod']
+    ## Formula: 
+    ## SaccadeAmplitude ~ 1 + ForagingType + (ForagingType | ParticipantID) +  
+    ##     (ForagingType | Stimulus)
+    ##    Data: Saccades
+    ## 
+    ## REML criterion at convergence: 20364.2
+    ## 
+    ## Scaled residuals: 
+    ##     Min      1Q  Median      3Q     Max 
+    ## -1.5220 -0.6237 -0.2889  0.3112  6.1997 
+    ## 
+    ## Random effects:
+    ##  Groups        Name               Variance Std.Dev. Corr 
+    ##  Stimulus      (Intercept)         0.2151  0.4638        
+    ##                ForagingTypeSearch  0.7719  0.8786   -0.60
+    ##  ParticipantID (Intercept)         0.1318  0.3631        
+    ##                ForagingTypeSearch  0.2913  0.5397   -0.61
+    ##  Residual                         12.9688  3.6012        
+    ## Number of obs: 3762, groups:  Stimulus, 10; ParticipantID, 6
+    ## 
+    ## Fixed effects:
+    ##                    Estimate Std. Error t value
+    ## (Intercept)          2.5358     0.2274  11.153
+    ## ForagingTypeSearch   1.8753     0.3838   4.887
+    ## 
+    ## Correlation of Fixed Effects:
+    ##             (Intr)
+    ## FrgngTypSrc -0.601
+
+``` r
+# exponentiating to get back to the relevant scale
+exp(0.927+0.538) - exp(0.927)
+```
+
+    ## [1] 1.800626
+
+``` r
+exp(0.07907)
+```
+
+    ## [1] 1.08228
+
+``` r
+exp(0.538)
+```
+
+    ## [1] 1.712578
+
+``` r
+exp(0.927+0.538) - exp(0.538)
+```
+
+    ## [1] 2.614965
+
+``` r
+## plotting and comparing results
+plot(residuals(m_log)) + plot(residuals(m_id))
+```
+
+![](CompMod1_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->![](CompMod1_files/figure-gfm/unnamed-chunk-3-2.png)<!-- -->
+
+    ## integer(0)
+
+``` r
+plot(predict(m_log)) + plot(predict(m_id))
+```
+
+![](CompMod1_files/figure-gfm/unnamed-chunk-3-3.png)<!-- -->![](CompMod1_files/figure-gfm/unnamed-chunk-3-4.png)<!-- -->
+
+    ## integer(0)
+
+``` r
+plot(density(predict(m_log))) + plot(density(predict(m_id)))
+```
+
+![](CompMod1_files/figure-gfm/unnamed-chunk-3-5.png)<!-- -->![](CompMod1_files/figure-gfm/unnamed-chunk-3-6.png)<!-- -->
+
+    ## integer(0)
+
+``` r
+## assessing model's fit 
+dGaus <- DHARMa::simulateResiduals(m_log, n=250)
+```
+
+    ## Model family was recognized or set as continuous, but duplicate values were detected in the response. Consider if you are fitting an appropriate model.
+
+``` r
+dlog <- DHARMa::simulateResiduals(m_id)
+```
+
+    ## Model family was recognized or set as continuous, but duplicate values were detected in the response. Consider if you are fitting an appropriate model.
+
+``` r
+plot(dGaus)
+```
+
+![](CompMod1_files/figure-gfm/unnamed-chunk-3-7.png)<!-- -->
+
+``` r
+plot(dlog)
+```
+
+![](CompMod1_files/figure-gfm/unnamed-chunk-3-8.png)<!-- -->
+
+``` r
+plot(density(Saccades$SaccadeNo))
+```
+
+![](CompMod1_files/figure-gfm/unnamed-chunk-3-9.png)<!-- -->
+
+``` r
+summary(abs(predict(m_log)- Saccades$SaccadeAmplitude))
+```
+
+    ##      Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+    ##  0.001323  0.476693  1.093307  2.685675  3.634608 25.720308
+
+``` r
+r.squaredGLMM(m_log)
+```
+
+    ## Warning: 'r.squaredGLMM' now calculates a revised statistic. See the help page.
+
+    ##              R2m       R2c
+    ## [1,] 0.005284715 0.0269386
+
+``` r
+r.squaredGLMM(m_id)
+```
+
+    ##             R2m        R2c
+    ## [1,] 0.06001942 0.09753909
+
+``` r
+saccadesModelData2 <- saccades %>% 
+  group_by(ForagingType) %>% 
+  summarise(MeanSaccadeAmplitude = mean(SaccadeAmplitude))
+
+ggplot(saccades, aes(ForagingType, SaccadeAmplitude,color=SaccadeNo)) + geom_point() + geom_abline(intercept = 2.5358, slope = 1.8753)+geom_jitter()
 ```
 
 ![](CompMod1_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
-
-``` r
-plot(density(saccades$SaccadeAmplitude))
-```
-
-![](CompMod1_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->
 
 ``` r
 #Isolating the Social Engagement Data
@@ -384,8 +453,6 @@ plot(pupilSim )
 ``` r
 r.squaredGLMM(pupilModel)
 ```
-
-    ## Warning: 'r.squaredGLMM' now calculates a revised statistic. See the help page.
 
     ##             R2m       R2c
     ## [1,] 0.01399353 0.8652069
